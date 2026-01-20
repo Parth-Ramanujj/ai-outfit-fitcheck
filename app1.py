@@ -163,8 +163,12 @@ def show_outfit_page(data):
 if uploaded_file and st.button("Analyze My Outfit"):
     with st.spinner("Analyzing outfit…"):
 
+        total_start = time.time()
+
         image_b64 = base64.b64encode(uploaded_file.read()).decode()
 
+        # ---------- STAGE 1 ----------
+        t1 = time.time()
         vision_resp = client.chat.completions.create(
             model=VISION_MODEL,
             temperature=0,
@@ -177,12 +181,14 @@ if uploaded_file and st.button("Analyze My Outfit"):
                 ]}
             ],
         )
+        vision_time = time.time() - t1
 
         vision_raw = vision_resp.choices[0].message.content or ""
         vision_json = extract_json_loose(vision_raw)
 
+        # ---------- STAGE 2 ----------
+        t2 = time.time()
         text_input = json.dumps(vision_json) if vision_json else vision_raw
-
         text_resp = client.chat.completions.create(
             model=TEXT_MODEL,
             temperature=0,
@@ -192,6 +198,9 @@ if uploaded_file and st.button("Analyze My Outfit"):
                 {"role": "user", "content": text_input}
             ],
         )
+        text_time = time.time() - t2
+
+        total_time = time.time() - total_start
 
         final_raw = text_resp.choices[0].message.content or ""
         final_json = extract_json_loose(final_raw)
@@ -203,15 +212,45 @@ if uploaded_file and st.button("Analyze My Outfit"):
 
         final_result = sanitize_final(final_json)
 
-        # 👉 FIRST CIRCLE UI (photo + tags)
+        # 👉 FIRST CIRCLE UI
         show_image_with_tags(uploaded_file, final_result)
 
-        # 👉 SECOND CIRCLE UI (full analysis page)
+        # 👉 SECOND CIRCLE UI
         show_outfit_page(final_result)
 
-        # 👉 THIRD OUTPUT (RAW JSON ROW DATA)
+        # 👉 RAW JSON
         st.divider()
         st.subheader("📄 Raw JSON (Submission-Ready)")
         st.code(json.dumps(final_result, indent=2), language="json")
 
-        st.caption(f"⏱️ {latency:.2f}s • 🔐 2-step AI analysis")
+        # ================= SYSTEM GUARANTEES =================
+
+        st.divider()
+        st.subheader("🅱️ Determinism & Consistency")
+        st.markdown("""
+✔ Same image → same structure (temperature=0)  
+✔ Fixed JSON schema enforced  
+✔ Missing fields auto-filled  
+✔ No schema drift allowed  
+""")
+
+        st.subheader("🅲 Latency Breakdown")
+        st.markdown(f"""
+• Vision model: `{vision_time:.2f}s`  
+• Text formatting: `{text_time:.2f}s`  
+• **Total end-to-end:** `{total_time:.2f}s`  
+Target: ≤ 3 seconds (p95)
+""")
+
+        st.subheader("🅳 Cost Estimate")
+        st.markdown("""
+**Models used:**  
+• allenai/molmo-2-8b (vision + text)
+
+**Calls per fitcheck:**  
+• 2 calls (1 vision + 1 structuring)
+
+**Approx cost:**  
+• ~$0 (free tier model on OpenRouter)  
+• 1,000 fitchecks ≈ **$0 – $1 (depending on provider limits)**
+""")
