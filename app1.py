@@ -208,3 +208,8 @@ if uploaded_file and st.button("Analyze My Outfit"):
 
         # 👉 SECOND CIRCLE UI (full analysis page)
         show_outfit_page(final_result)
+
+        # 👉 THIRD OUTPUT (RAW JSON ROW DATA)
+        st.divider()
+        st.subheader("📄 Raw JSON (Submission-Ready)")
+        st.code(json.dumps(final_result, indent=2), language="json")
