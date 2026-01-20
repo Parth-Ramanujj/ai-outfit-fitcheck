@@ -142,7 +142,7 @@ def sanitize_final(result: dict) -> dict:
 
 # ================= RESULT PAGE =================
 
-def show_outfit_page(data):
+# def show_outfit_page(data):
     st.divider()
     st.markdown("## 👗 Outfit Analysis")
 
@@ -160,6 +160,30 @@ def show_outfit_page(data):
     st.markdown("### 💡 How to Improve")
     for item in data["suggestions"]:
         st.warning(item)
+
+def show_outfit_page(data):
+    st.divider()
+    st.markdown("## 👗 Outfit Analysis")
+
+    # Overall vibe
+    st.markdown("### ✨ Overall Vibe")
+    st.info(f"**{data['overall_vibe']['summary']}**  \nCategory: {data['overall_vibe']['category']}")
+
+    # What works
+    st.markdown("### ✅ What Works")
+    for item in data["what_works"]:
+        st.success(item)
+
+    # What needs work
+    st.markdown("### ❌ What Needs Work")
+    for item in data["what_needs_work"]:
+        st.error(item)
+
+    # Suggestions
+    st.markdown("### 💡 How to Improve")
+    for item in data["suggestions"]:
+        st.warning(item)
+
 
 # ================= RUN =================
 
