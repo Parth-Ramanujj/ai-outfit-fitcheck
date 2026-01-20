@@ -60,6 +60,16 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+st.markdown("""
+<style>
+.block-container { max-width: 420px; }
+
+.image-container { position: relative; width: 100%; }
+
+
+</style>
+""", unsafe_allow_html=True)
+
 st.title("AI Outfit Fitcheck")
 st.caption("Upload an outfit photo and get a structured analysis")
 
