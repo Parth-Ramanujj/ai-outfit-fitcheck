@@ -12,10 +12,21 @@ if not OPENROUTER_API_KEY:
     st.error("❌ API key not configured. Please set OPENROUTER_API_KEY in secrets or environment variables.")
     st.stop()
 
+# client = OpenAI(
+#     base_url="https://openrouter.ai/api/v1",
+#     api_key="OPENROUTER_API_KEY",
+# )
+
 client = OpenAI(
     base_url="https://openrouter.ai/api/v1",
-    api_key="OPENROUTER_API_KEY",
+    api_key=OPENROUTER_API_KEY,
+    default_headers={
+        "HTTP-Referer": "https://ai-outfit-fitcheck.streamlit.app", 
+        "X-Title": "AI Outfit Fitcheck"
+    }
 )
+
+
 # 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
 VISION_MODEL = "allenai/molmo-2-8b:free"
 TEXT_MODEL = "allenai/molmo-2-8b:free"
