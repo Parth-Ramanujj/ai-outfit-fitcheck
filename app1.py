@@ -213,3 +213,5 @@ if uploaded_file and st.button("Analyze My Outfit"):
         st.divider()
         st.subheader("📄 Raw JSON (Submission-Ready)")
         st.code(json.dumps(final_result, indent=2), language="json")
+
+        st.caption(f"⏱️ {latency:.2f}s • 🔐 2-step AI analysis")
