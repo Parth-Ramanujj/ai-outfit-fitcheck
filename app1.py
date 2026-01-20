@@ -5,11 +5,14 @@ import time
 import os
 from openai import OpenAI
 
-# ================= CONFIG =================
+
+# Basic config
+
+
 OPENROUTER_API_KEY = st.secrets.get("OPENROUTER_API_KEY") or os.environ.get("OPENROUTER_API_KEY")
 
 if not OPENROUTER_API_KEY:
-    st.error("❌ API key not configured. Please set OPENROUTER_API_KEY in secrets or environment variables.")
+    st.error("API key missing. Please set OPENROUTER_API_KEY in Streamlit secrets.")
     st.stop()
 
 client = OpenAI(
@@ -24,7 +27,11 @@ client = OpenAI(
 VISION_MODEL = "allenai/molmo-2-8b:free"
 TEXT_MODEL = "allenai/molmo-2-8b:free"
 
-# ================= UI =================
+
+
+# Page setup
+
+
 st.set_page_config(page_title="AI Outfit Fitcheck", layout="centered")
 
 st.markdown("""
@@ -45,35 +52,39 @@ st.markdown("""
     border-radius: 14px;
     font-size: 13px;
     font-weight: 600;
-    width: fit-content;
     box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+    width: fit-content;
 }
 .good { background: #d1fae5; color: #065f46; }
 .bad { background: #fee2e2; color: #991b1b; }
 </style>
 """, unsafe_allow_html=True)
 
-st.title("🧥 AI Outfit Fitcheck")
-st.caption("Upload outfit image → Get Outfit Analysis")
+st.title("AI Outfit Fitcheck")
+st.caption("Upload an outfit photo and get a structured analysis")
 
-uploaded_file = st.file_uploader("Upload a full or near-full body image", type=["jpg", "jpeg", "png"])
+uploaded_file = st.file_uploader(
+    "Upload a full or near-full body image",
+    type=["jpg", "jpeg", "png"]
+)
 
-# ================= PROMPTS =================
+
+# Prompts
+
 
 VISION_PROMPT = """
 Describe ONLY what is visible in the image.
-Rules:
 - Clothing items only
-- No opinions or styling advice
+- No opinions
 - No guessing
 - Short factual sentences
 """
 
 TEXT_PROMPT = """
-You are a STRICT JSON formatting engine.
-Output ONLY valid JSON.
+You are a strict JSON formatting engine.
 
-FINAL SCHEMA:
+Return ONLY valid JSON in this exact schema:
+
 {
   "overall_vibe": {"summary": "", "category": ""},
   "what_works": [],
@@ -83,91 +94,93 @@ FINAL SCHEMA:
 }
 """
 
-# ================= HELPERS =================
 
-def extract_json_loose(text: str):
+
+# Helpers
+
+
+def extract_json(text: str):
     start = text.find("{")
     end = text.rfind("}") + 1
-    if start == -1 or end == 0:
+    if start == -1:
         return None
     try:
         return json.loads(text[start:end])
-    except Exception:
+    except:
         return None
 
-def sanitize_final(result: dict) -> dict:
-    result["what_works"] = result.get("what_works", [])[:3]
-    result["what_needs_work"] = result.get("what_needs_work", [])[:2]
-    result["suggestions"] = result.get("suggestions", [])[:2]
 
-    filler_works = [
-        "The visible clothing pieces coordinate well together.",
-        "The outfit elements appear visually consistent.",
-        "The garments create a balanced overall appearance."
-    ]
-    i = 0
-    while len(result["what_works"]) < 3:
-        result["what_works"].append(filler_works[i % len(filler_works)])
-        i += 1
+def normalize_output(data: dict) -> dict:
+    data["what_works"] = data.get("what_works", [])[:3]
+    data["what_needs_work"] = data.get("what_needs_work", [])[:2]
+    data["suggestions"] = data.get("suggestions", [])[:2]
 
-    while len(result["what_needs_work"]) < 2:
-        result["what_needs_work"].append("No clearly visible fit issues are present.")
+    while len(data["what_works"]) < 3:
+        data["what_works"].append("The outfit elements appear visually consistent.")
 
-    while len(result["suggestions"]) < 2:
-        result["suggestions"].append("No changes are required based on visible elements.")
+    while len(data["what_needs_work"]) < 2:
+        data["what_needs_work"].append("No clearly visible fit issues are present.")
 
-    return result
+    while len(data["suggestions"]) < 2:
+        data["suggestions"].append("No changes are required based on visible elements.")
 
-# ================= UI FUNCTIONS =================
+    return data
 
-def show_image_with_tags(uploaded_file, data):
-    good = data["what_works"][:2]
-    bad = data["what_needs_work"][:2]
 
-    chips_html = ""
+
+# UI blocks
+
+
+def render_image_overlay(file, result):
+    good = result["what_works"][:2]
+    bad = result["what_needs_work"][:2]
+
+    tags = ""
     for g in good:
-        chips_html += f'<div class="chip good">✅ {g}</div>'
+        tags += f'<div class="chip good">✓ {g}</div>'
     for b in bad:
-        chips_html += f'<div class="chip bad">❌ {b}</div>'
+        tags += f'<div class="chip bad">✕ {b}</div>'
 
     st.markdown(f"""
     <div class="image-container">
-        <img src="data:image/jpeg;base64,{base64.b64encode(uploaded_file.getvalue()).decode()}" style="width:100%; border-radius:16px;">
-        <div class="overlay-box">
-            {chips_html}
-        </div>
+        <img src="data:image/jpeg;base64,{base64.b64encode(file.getvalue()).decode()}"
+             style="width:100%; border-radius:16px;">
+        <div class="overlay-box">{tags}</div>
     </div>
     """, unsafe_allow_html=True)
 
-def show_outfit_page(data):
+
+def render_analysis(data):
     st.divider()
-    st.markdown("## 👗 Outfit Analysis")
+    st.markdown("## Outfit Analysis")
 
-    st.markdown("### ✨ Overall Vibe")
-    st.info(f"**{data['overall_vibe']['summary']}**  \nCategory: {data['overall_vibe']['category']}")
+    st.markdown("### Overall vibe")
+    st.info(f"{data['overall_vibe']['summary']}  \nCategory: {data['overall_vibe']['category']}")
 
-    st.markdown("### ✅ What Works")
-    for item in data["what_works"]:
-        st.success(item)
+    st.markdown("### What works")
+    for i in data["what_works"]:
+        st.success(i)
 
-    st.markdown("### ❌ What Needs Work")
-    for item in data["what_needs_work"]:
-        st.error(item)
+    st.markdown("### What needs work")
+    for i in data["what_needs_work"]:
+        st.error(i)
 
-    st.markdown("### 💡 How to Improve")
-    for item in data["suggestions"]:
-        st.warning(item)
+    st.markdown("### Suggestions")
+    for i in data["suggestions"]:
+        st.warning(i)
 
-# ================= RUN =================
 
-if uploaded_file and st.button("Analyze My Outfit"):
-    with st.spinner("Analyzing outfit…"):
+# Main flow
+
+
+if uploaded_file and st.button("Analyze outfit"):
+
+    with st.spinner("Analyzing image..."):
 
         total_start = time.time()
-
         image_b64 = base64.b64encode(uploaded_file.read()).decode()
 
-        # ---------- STAGE 1 ----------
+        # Vision step
         t1 = time.time()
         vision_resp = client.chat.completions.create(
             model=VISION_MODEL,
@@ -175,20 +188,20 @@ if uploaded_file and st.button("Analyze My Outfit"):
             max_tokens=400,
             messages=[
                 {"role": "system", "content": VISION_PROMPT},
-                {"role": "user","content": [
-                        {"type": "text", "text": "Describe the visible outfit."},
-                        {"type": "image_url","image_url": {"url": f"data:{uploaded_file.type};base64,{image_b64}"}}
+                {"role": "user", "content": [
+                    {"type": "text", "text": "Describe the visible outfit."},
+                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_b64}"}}
                 ]}
             ],
         )
         vision_time = time.time() - t1
 
-        vision_raw = vision_resp.choices[0].message.content or ""
-        vision_json = extract_json_loose(vision_raw)
+        vision_text = vision_resp.choices[0].message.content or ""
+        vision_json = extract_json(vision_text)
 
-        # ---------- STAGE 2 ----------
+        # Structuring step
         t2 = time.time()
-        text_input = json.dumps(vision_json) if vision_json else vision_raw
+        text_input = json.dumps(vision_json) if vision_json else vision_text
         text_resp = client.chat.completions.create(
             model=TEXT_MODEL,
             temperature=0,
@@ -202,55 +215,45 @@ if uploaded_file and st.button("Analyze My Outfit"):
 
         total_time = time.time() - total_start
 
-        final_raw = text_resp.choices[0].message.content or ""
-        final_json = extract_json_loose(final_raw)
+        final_text = text_resp.choices[0].message.content or ""
+        final_json = extract_json(final_text)
 
         if not final_json:
-            st.error("❌ Failed to generate valid result.")
-            st.code(final_raw)
+            st.error("Failed to generate valid JSON output.")
+            st.code(final_text)
             st.stop()
 
-        final_result = sanitize_final(final_json)
+        final_result = normalize_output(final_json)
 
-        # 👉 FIRST CIRCLE UI
-        show_image_with_tags(uploaded_file, final_result)
+        # UI output
+        render_image_overlay(uploaded_file, final_result)
+        render_analysis(final_result)
 
-        # 👉 SECOND CIRCLE UI
-        show_outfit_page(final_result)
-
-        # 👉 RAW JSON
         st.divider()
-        st.subheader("📄 Raw JSON (Submission-Ready)")
+        st.subheader("Raw JSON output")
         st.code(json.dumps(final_result, indent=2), language="json")
 
-        # ================= SYSTEM GUARANTEES =================
-
+        # System notes
         st.divider()
-        st.subheader("🅱️ Determinism & Consistency")
+        st.subheader("Determinism & consistency")
         st.markdown("""
-✔ Same image → same structure (temperature=0)  
-✔ Fixed JSON schema enforced  
-✔ Missing fields auto-filled  
-✔ No schema drift allowed  
+- Temperature is fixed at 0  
+- Schema is enforced  
+- Missing fields are auto-filled  
+- Same image produces the same structure  
 """)
 
-        st.subheader("🅲 Latency Breakdown")
+        st.subheader("Latency")
         st.markdown(f"""
-• Vision model: `{vision_time:.2f}s`  
-• Text formatting: `{text_time:.2f}s`  
-• **Total end-to-end:** `{total_time:.2f}s`  
-Target: ≤ 3 seconds (p95)
+Vision step: {vision_time:.2f}s  
+Structuring step: {text_time:.2f}s  
+Total time: {total_time:.2f}s (target ≤ 3s p95)
 """)
 
-        st.subheader("🅳 Cost Estimate")
+        st.subheader("Cost estimate")
         st.markdown("""
-**Models used:**  
-• allenai/molmo-2-8b (vision + text)
-
-**Calls per fitcheck:**  
-• 2 calls (1 vision + 1 structuring)
-
-**Approx cost:**  
-• ~$0 (free tier model on OpenRouter)  
-• 1,000 fitchecks ≈ **$0 – $1 (depending on provider limits)**
+Model: allenai/molmo-2-8b  
+Calls per request: 2  
+Approx cost: free tier  
+1,000 fitchecks ≈ $0 – $1 depending on limits
 """)
